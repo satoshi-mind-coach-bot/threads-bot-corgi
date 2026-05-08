@@ -5,4 +5,5 @@
   "max_error_count": 3,
   "min_post_interval_minutes": 60,
   "max_posts_per_day": 10
+
 }
