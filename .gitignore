@@ -1,0 +1,7 @@
+config/credentials.env
+logs/
+*.log
+__pycache__/
+*.pyc
+.DS_Store
+KILL_SWITCH

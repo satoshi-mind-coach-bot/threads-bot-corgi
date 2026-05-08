@@ -1,0 +1,10 @@
+{
+  "daily_run_time": "07:00",
+  "post_slots": ["09:00","10:30","12:00","14:00","16:00","18:00","19:30","21:00","22:30","00:00"],
+  "min_interval_minutes": 60,
+  "max_posts_per_day": 10,
+  "note_promo_every_post": false,
+  "note_promo_in_reply": false,
+  "add_topic_tag": true,
+  "topic_tags": ["マインド", "経営者マインド", "思考法", "美容師", "メンタル"]
+}

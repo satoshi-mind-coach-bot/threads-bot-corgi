@@ -1,0 +1,8 @@
+{
+  "quality_threshold": 7.0,
+  "similarity_threshold": 0.85,
+  "max_same_theme_consecutive": 3,
+  "max_error_count": 3,
+  "min_post_interval_minutes": 60,
+  "max_posts_per_day": 10
+}
