@@ -36,6 +36,14 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Refill queue if low
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python agents/writer.py
+
       - name: Post to Threads
         env:
           THREADS_APP_ID: ${{ secrets.THREADS_APP_ID }}
