@@ -1,0 +1,54 @@
+{
+  "character_base": "A fluffy corgi puppy with warm amber-brown and cream white fur (NOT yellow), darker caramel-brown on back and ears, soft cream white on chest and inner face, large perky triangle ears, sparkling bright green eyes with white catchlight highlights, small dark round nose, chubby chibi round body with very short stubby legs, gentle happy smile with tiny pink tongue — soft watercolor illustration style, muted pastel tones, no harsh saturation, warm and cozy atmosphere, Studio Ghibli-inspired cute style, no text, no watermark, 1024x1024px square",
+
+  "emotion_map": {
+    "energetic": {
+      "label": "朝の名言",
+      "scene": "standing proudly in soft morning sunlight streaming through a window, tail wagging energetically, mouth open in a big happy smile, eyes sparkling with excitement",
+      "background": "cozy Japanese living room with warm golden morning light, soft curtains, wooden floor",
+      "mood": "bright, hopeful, energetic start of the day"
+    },
+    "dreamy": {
+      "label": "引き寄せ",
+      "scene": "sitting on a fluffy cloud, eyes half-closed in a dreamy expression, one paw gently raised as if reaching for a glowing star, soft smile",
+      "background": "pastel blue sky with soft cotton clouds, gentle sparkles and stars around",
+      "mood": "magical, dreamy, peaceful wonder"
+    },
+    "proud": {
+      "label": "自己肯定感",
+      "scene": "sitting upright with chest puffed out proudly, big confident smile, eyes bright and shining, surrounded by small flowers",
+      "background": "soft green meadow with blooming pastel wildflowers, gentle sunlight",
+      "mood": "confident, warm self-love, gentle pride"
+    },
+    "determined": {
+      "label": "メンタル強化",
+      "scene": "standing on top of a small hill with a serious but gentle expression, one front paw raised slightly, looking forward with quiet determination",
+      "background": "misty mountain path with soft light breaking through clouds, peaceful nature",
+      "mood": "quiet strength, resilience, calm determination"
+    },
+    "cheerful": {
+      "label": "習慣づくり",
+      "scene": "sitting next to a small open notebook and a tiny cup of tea, looking up with a cheerful eager expression, tail visible and fluffy",
+      "background": "cozy Japanese kotatsu corner, warm afternoon light, simple wooden desk",
+      "mood": "cozy productivity, gentle motivation, warm daily routine"
+    },
+    "comforting": {
+      "label": "休息・癒し",
+      "scene": "curled up softly on a cushion with eyes gently closed, peaceful sleeping face, one paw tucked under chin",
+      "background": "soft warm blanket, dim evening lamp light, cozy indoor Japanese room",
+      "mood": "gentle rest, permission to relax, tender comfort"
+    },
+    "curious": {
+      "label": "気づき・発見",
+      "scene": "head tilted to one side with wide curious eyes, one ear perked higher than the other, small mouth slightly open in surprise",
+      "background": "simple soft pastel background with a few floating sparkles",
+      "mood": "wonder, gentle surprise, open curiosity"
+    },
+    "empathetic": {
+      "label": "共感・告白",
+      "scene": "sitting quietly with soft gentle eyes, slight melancholy expression but a small warm smile, looking directly at viewer",
+      "background": "soft rainy window scene, gentle blue-grey tones, indoor warmth",
+      "mood": "understanding, warmth, gentle emotional honesty"
+    }
+  }
+}
