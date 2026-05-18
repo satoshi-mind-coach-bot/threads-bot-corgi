@@ -2,7 +2,9 @@ import json
 import os
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+JST = timezone(timedelta(hours=9))
 
 BOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -48,7 +50,7 @@ def check_kill_switch():
         sys.exit(0)
 
 def check_daily_limit(history, safety):
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now(JST).strftime("%Y-%m-%d")
     today_posts = [p for p in history if p.get("posted_at", "").startswith(today)]
     if len(today_posts) >= safety["max_posts_per_day"]:
         print(f"[STOP] 本日の投稿上限（{safety['max_posts_per_day']}件）に達しています。")
@@ -147,7 +149,24 @@ def main():
         print("[INFO] キューが空です。ライターを先に実行してください。")
         sys.exit(0)
 
-    post = queue.pop(0)
+    # 現在時刻に合う time_slot を判定（JSTで判断）
+    current_hour = datetime.now(JST).hour
+    if 5 <= current_hour < 11:
+        current_slot = "朝"
+    elif 11 <= current_hour < 17:
+        current_slot = "昼"
+    else:
+        current_slot = "夜"
+
+    # 時間帯一致 → フリー → 先頭 の優先順で選ぶ
+    idx = next((i for i, p in enumerate(queue) if p.get("time_slot") == current_slot), None)
+    if idx is None:
+        idx = next((i for i, p in enumerate(queue) if p.get("time_slot", "フリー") == "フリー"), None)
+    if idx is None:
+        idx = 0
+
+    post = queue.pop(idx)
+    print(f"[INFO] time_slot={post.get('time_slot', '未設定')} の投稿を選択（現在: {current_slot}）")
     text = post.get("text", "")
     reply_text = post.get("reply_text", "")
 
