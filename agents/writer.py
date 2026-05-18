@@ -48,9 +48,9 @@ def main():
 
     print(f"[INFO] キュー残り{len(queue)}件。{GENERATE_COUNT}件生成します。")
 
-    persona = load_text(os.path.join(BOT_DIR, "knowledge", "persona.md"))
-    themes = load_json(os.path.join(BOT_DIR, "knowledge", "theme_tree.json"))
-    patterns = load_json(os.path.join(BOT_DIR, "knowledge", "post_patterns.json"))
+    persona = load_text(os.path.join(BOT_DIR, "knowledge", "knowledge", "persona.md"))
+    themes = load_json(os.path.join(BOT_DIR, "knowledge", "knowledge", "theme_tree.json"))
+    patterns = load_json(os.path.join(BOT_DIR, "knowledge", "knowledge", "post_patterns.json"))
     history = load_json(history_path)
 
     recent_texts = [p.get("text", "")[:60] for p in history[-30:]]
@@ -77,6 +77,14 @@ def main():
 - テーマ5カテゴリをバランスよく使う
 - 1投稿150〜300文字
 - スコアが7.0未満の投稿は含めない
+- 各投稿に time_slot を必ず付けること（下記定義を厳守）
+
+## time_slot の定義（厳守）
+- "朝": 「おはよう」「朝」「起きた」「今日も」など朝を連想させる表現が含まれる投稿
+- "昼": 「こんにちは」「昼」「午後」など昼を連想させる表現が含まれる投稿
+- "夜": 「こんばんは」「夜」「今夜」「夜中」「おやすみ」など夜を連想させる表現が含まれる投稿
+- "フリー": 時間帯に関係なく読める投稿（ほとんどはこれ）
+- 朝の挨拶が入っているのに time_slot が "フリー" にならないよう注意すること
 
 ## 直近の投稿（重複を避けるために参照）
 {json.dumps(recent_texts, ensure_ascii=False)}
@@ -92,6 +100,7 @@ JSON配列のみ出力してください。説明文・コードブロック記�
     "pattern": "パターンid",
     "theme": "テーマカテゴリ",
     "score": 8.5,
+    "time_slot": "フリー",
     "created_at": "{now_str}"
   }}
 ]"""

@@ -2,20 +2,85 @@ import json
 import os
 import sys
 import time
+import base64
+import urllib.request
+import urllib.parse
 from datetime import datetime, timezone, timedelta
 
 JST = timezone(timedelta(hours=9))
 
 BOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+THEME_TO_EMOTION = {
+    "朝の名言": "energetic",
+    "引き寄せ": "dreamy",
+    "自己肯定感": "proud",
+    "メンタル強化": "determined",
+    "習慣づくり": "cheerful",
+    "休息・癒し": "comforting",
+    "気づき・発見": "curious",
+    "共感・告白": "empathetic",
+}
+
+def generate_image(emotion_key, openai_api_key):
+    emotion_map_path = os.path.join(BOT_DIR, "knowledge", "knowledge", "image_emotion_map.json")
+    with open(emotion_map_path, "r", encoding="utf-8") as f:
+        emotion_map = json.load(f)
+    base = emotion_map.get("character_base", "")
+    emotion = emotion_map["emotion_map"].get(emotion_key, emotion_map["emotion_map"]["energetic"])
+    prompt = f"{base}, {emotion['scene']}, {emotion['background']}, {emotion['mood']}"
+
+    from openai import OpenAI
+    client = OpenAI(api_key=openai_api_key)
+    response = client.images.generate(
+        model="gpt-image-1", prompt=prompt, size="1024x1024", quality="medium", n=1
+    )
+    img_data = base64.b64decode(response.data[0].b64_json)
+
+    img_dir = os.path.join(BOT_DIR, "data", "images")
+    os.makedirs(img_dir, exist_ok=True)
+    filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{emotion_key}.png"
+    img_path = os.path.join(img_dir, filename)
+    with open(img_path, "wb") as f:
+        f.write(img_data)
+    print(f"[OK] 画像生成: {img_path}")
+    return img_path
+
+def upload_to_catbox(img_path):
+    with open(img_path, "rb") as f:
+        img_bytes = f.read()
+    boundary = "----FormBoundary7MA4YWxkTrZu0gW"
+    body = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="reqtype"\r\n\r\n'
+        f"fileupload\r\n"
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="fileToUpload"; filename="corgi.png"\r\n'
+        f"Content-Type: image/png\r\n\r\n"
+    ).encode("utf-8") + img_bytes + f"\r\n--{boundary}--\r\n".encode("utf-8")
+
+    req = urllib.request.Request(
+        "https://catbox.moe/user/api.php",
+        data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        method="POST"
+    )
+    with urllib.request.urlopen(req, timeout=30) as res:
+        url = res.read().decode("utf-8").strip()
+    if not url.startswith("http"):
+        raise ValueError(f"catbox upload failed: {url}")
+    print(f"[OK] 画像URL: {url}")
+    return url
+
 def load_credentials():
     # GitHub Actions: 環境変数から読み込む
     if os.environ.get("THREADS_ACCESS_TOKEN"):
         return {
-            "THREADS_APP_ID": os.environ["THREADS_APP_ID"],
-            "THREADS_APP_SECRET": os.environ["THREADS_APP_SECRET"],
+            "THREADS_APP_ID": os.environ.get("THREADS_APP_ID", ""),
+            "THREADS_APP_SECRET": os.environ.get("THREADS_APP_SECRET", ""),
             "THREADS_ACCESS_TOKEN": os.environ["THREADS_ACCESS_TOKEN"],
             "THREADS_USER_ID": os.environ["THREADS_USER_ID"],
+            "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY", ""),
         }
     # ローカル: credentials.envから読み込む
     creds = {}
@@ -89,22 +154,18 @@ def reset_error(error_count_path):
     with open(error_count_path, "w") as f:
         f.write("0")
 
-def create_thread(token, user_id, text):
-    import urllib.request
-    import urllib.parse
+def create_thread(token, user_id, text, image_url=None):
     url = f"https://graph.threads.net/v1.0/{user_id}/threads"
-    data = urllib.parse.urlencode({
-        "media_type": "TEXT",
-        "text": text,
-        "access_token": token
-    }).encode("utf-8")
+    if image_url:
+        params = {"media_type": "IMAGE", "image_url": image_url, "text": text, "access_token": token}
+    else:
+        params = {"media_type": "TEXT", "text": text, "access_token": token}
+    data = urllib.parse.urlencode(params).encode("utf-8")
     req = urllib.request.Request(url, data=data, method="POST")
     with urllib.request.urlopen(req) as res:
         return json.loads(res.read().decode("utf-8"))
 
 def publish_thread(token, user_id, creation_id):
-    import urllib.request
-    import urllib.parse
     url = f"https://graph.threads.net/v1.0/{user_id}/threads_publish"
     data = urllib.parse.urlencode({
         "creation_id": creation_id,
@@ -115,8 +176,6 @@ def publish_thread(token, user_id, creation_id):
         return json.loads(res.read().decode("utf-8"))
 
 def reply_to_thread(token, user_id, reply_to_id, text):
-    import urllib.request
-    import urllib.parse
     url = f"https://graph.threads.net/v1.0/{user_id}/threads"
     data = urllib.parse.urlencode({
         "media_type": "TEXT",
@@ -158,23 +217,36 @@ def main():
     else:
         current_slot = "夜"
 
-    # 時間帯一致 → フリー → 先頭 の優先順で選ぶ
+    # 時間帯一致 → フリー の優先順（ミスマッチはスキップ）
     idx = next((i for i, p in enumerate(queue) if p.get("time_slot") == current_slot), None)
     if idx is None:
-        idx = next((i for i, p in enumerate(queue) if p.get("time_slot", "フリー") == "フリー"), None)
+        idx = next((i for i, p in enumerate(queue) if p.get("time_slot") in ("フリー", None, "")), None)
     if idx is None:
-        idx = 0
+        print(f"[SKIP] 現在({current_slot})に適した投稿がキューにありません。次回以降に投稿します。")
+        sys.exit(0)
 
     post = queue.pop(idx)
     print(f"[INFO] time_slot={post.get('time_slot', '未設定')} の投稿を選択（現在: {current_slot}）")
     text = post.get("text", "")
     reply_text = post.get("reply_text", "")
+    theme = post.get("theme", "")
+    emotion_key = THEME_TO_EMOTION.get(theme, "energetic")
 
     print(f"[INFO] 投稿開始: {text[:30]}...")
 
+    # 画像生成
+    image_url = None
+    openai_key = creds.get("OPENAI_API_KEY", "")
+    if openai_key:
+        try:
+            img_path = generate_image(emotion_key, openai_key)
+            image_url = upload_to_catbox(img_path)
+        except Exception as e:
+            print(f"[WARN] 画像生成失敗。テキストのみ投稿: {e}")
+
     try:
         # メイン投稿
-        result = create_thread(token, user_id, text)
+        result = create_thread(token, user_id, text, image_url=image_url)
         creation_id = result["id"]
         time.sleep(3)
         published = publish_thread(token, user_id, creation_id)
