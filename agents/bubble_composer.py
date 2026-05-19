@@ -21,37 +21,37 @@ OVERLAY_HEIGHT_RATIO = 0.20
 MAX_CHARS = 20
 
 # テーマ別 OpenAI 加工プロンプト
+_CORGI_BASE = (
+    "This is a watercolor illustration of a cute corgi. "
+    "Keep the corgi character exactly as-is — preserve the white fur as pure white and the golden-brown fur in its natural color. "
+    "Do NOT add any yellow, orange, or warm tints to the corgi. Only modify the background. "
+    "Watercolor illustration style. "
+)
 THEME_PROMPTS = {
     "思考・マインドセット": (
-        "This is a watercolor illustration of a cute corgi. "
-        "Add a soft, dreamy atmosphere with gentle pastel tones and subtle floating book or star elements in the background. "
-        "Keep the corgi character exactly as-is, only enhance the background mood. Watercolor illustration style."
+        _CORGI_BASE
+        + "Add a soft, dreamy background with cool pastel blues and lavenders, subtle floating stars or book elements."
     ),
     "習慣・行動": (
-        "This is a watercolor illustration of a cute corgi. "
-        "Add a bright, energetic atmosphere with warm sunrise colors and dynamic energy in the background. "
-        "Keep the corgi character exactly as-is, only enhance the background mood. Watercolor illustration style."
+        _CORGI_BASE
+        + "Add a bright, energetic background with clear sky blue and fresh green tones, conveying a crisp morning feel."
     ),
     "経営者のメンタル": (
-        "This is a watercolor illustration of a cute corgi. "
-        "Add a confident, professional atmosphere with cool blue and gold accent tones in the background. "
-        "Keep the corgi character exactly as-is, only enhance the background mood. Watercolor illustration style."
+        _CORGI_BASE
+        + "Add a confident, professional background with deep cool blue and silver accent tones."
     ),
     "お金・事業の考え方": (
-        "This is a watercolor illustration of a cute corgi. "
-        "Add a sophisticated atmosphere with subtle golden tones and clean business-like background elements. "
-        "Keep the corgi character exactly as-is, only enhance the background mood. Watercolor illustration style."
+        _CORGI_BASE
+        + "Add a clean, sophisticated background with neutral gray and soft teal tones, business-like atmosphere."
     ),
     "人間関係・コミュニケーション": (
-        "This is a watercolor illustration of a cute corgi. "
-        "Add a warm, friendly atmosphere with soft pink and orange tones and gentle heart or sparkle elements in the background. "
-        "Keep the corgi character exactly as-is, only enhance the background mood. Watercolor illustration style."
+        _CORGI_BASE
+        + "Add a friendly background with soft cool pink and light purple tones and gentle sparkle elements."
     ),
 }
 DEFAULT_PROMPT = (
-    "This is a watercolor illustration of a cute corgi. "
-    "Enhance the background with a pleasant, positive atmosphere. "
-    "Keep the corgi character exactly as-is. Watercolor illustration style."
+    _CORGI_BASE
+    + "Enhance the background with a pleasant, positive atmosphere using cool, balanced tones."
 )
 
 
@@ -83,7 +83,18 @@ def edit_with_openai(image_path: str, theme: str, api_key: str) -> bytes:
     )
 
     import base64
-    return base64.b64decode(response.data[0].b64_json)
+    raw = base64.b64decode(response.data[0].b64_json)
+
+    # 黄みを軽減：赤チャンネルを少し下げ、青チャンネルを少し上げる
+    corrected = Image.open(io.BytesIO(raw)).convert("RGB")
+    r, g, b = corrected.split()
+    r = r.point(lambda x: int(x * 0.94))
+    g = g.point(lambda x: int(x * 0.98))
+    b = b.point(lambda x: min(255, int(x * 1.04)))
+    corrected = Image.merge("RGB", (r, g, b))
+    out = io.BytesIO()
+    corrected.save(out, format="PNG")
+    return out.getvalue()
 
 
 def _find_font(size=FONT_SIZE):
