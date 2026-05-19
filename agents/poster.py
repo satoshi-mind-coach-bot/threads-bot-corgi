@@ -209,9 +209,26 @@ def main():
     else:
         current_slot = "夜"
 
-    idx = next((i for i, p in enumerate(queue) if p.get("time_slot") == current_slot), None)
+    def get_effective_slot(post):
+        """テーマ名・本文キーワードからtime_slotを判定する"""
+        theme = post.get("theme", "")
+        text = post.get("text", "")
+        slot = post.get("time_slot", "フリー") or "フリー"
+        if "朝" in theme:
+            return "朝"
+        if "夜" in theme:
+            return "夜"
+        morning_words = ["おはよう", "おはようございます", "朝起き", "今朝"]
+        evening_words = ["こんばんは", "おやすみ", "夜中", "今夜"]
+        if any(w in text for w in morning_words):
+            return "朝"
+        if any(w in text for w in evening_words):
+            return "夜"
+        return slot
+
+    idx = next((i for i, p in enumerate(queue) if get_effective_slot(p) == current_slot), None)
     if idx is None:
-        idx = next((i for i, p in enumerate(queue) if p.get("time_slot") in ("フリー", None, "")), None)
+        idx = next((i for i, p in enumerate(queue) if get_effective_slot(p) in ("フリー", None, "")), None)
     if idx is None:
         print(f"[SKIP] 現在({current_slot})に適した投稿がキューにありません。")
         sys.exit(0)
