@@ -4,24 +4,10 @@ on:
   schedule:
     # JST 8:00 = UTC 23:00 (前日)
     - cron: '0 23 * * *'
-    # JST 9:30 = UTC 0:30
-    - cron: '30 0 * * *'
-    # JST 11:00 = UTC 2:00
-    - cron: '0 2 * * *'
-    # JST 12:30 = UTC 3:30
-    - cron: '30 3 * * *'
-    # JST 14:00 = UTC 5:00
-    - cron: '0 5 * * *'
-    # JST 15:30 = UTC 6:30
-    - cron: '30 6 * * *'
-    # JST 17:00 = UTC 8:00
-    - cron: '0 8 * * *'
-    # JST 18:30 = UTC 9:30
-    - cron: '30 9 * * *'
+    # JST 13:00 = UTC 4:00
+    - cron: '0 4 * * *'
     # JST 20:00 = UTC 11:00
     - cron: '0 11 * * *'
-    # JST 21:30 = UTC 12:30
-    - cron: '30 12 * * *'
   workflow_dispatch:
 
 jobs:
@@ -36,6 +22,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install system dependencies
+        run: sudo apt-get install -y fonts-noto-cjk
+
       - name: Install dependencies
         run: pip install -r requirements.txt
 
@@ -43,15 +32,11 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python agents/writer.py
-        continue-on-error: true
 
       - name: Post to Threads
         env:
-          THREADS_APP_ID: ${{ secrets.THREADS_APP_ID }}
-          THREADS_APP_SECRET: ${{ secrets.THREADS_APP_SECRET }}
           THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
           THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python agents/poster.py
 
       - name: Save updated queue and history
