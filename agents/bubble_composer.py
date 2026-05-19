@@ -1,4 +1,5 @@
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance
+import io
 import os
 import random
 
@@ -19,15 +20,70 @@ OVERLAY_COLOR = (0, 0, 0, 120)
 OVERLAY_HEIGHT_RATIO = 0.20
 MAX_CHARS = 20
 
-# テーマ→カラーフィルター設定
-THEME_FILTERS = {
-    "思考・マインドセット": {"brightness": 1.0, "contrast": 1.1, "warmth": 1.05},
-    "習慣・行動":           {"brightness": 1.1, "contrast": 1.0, "warmth": 1.1},
-    "経営者のメンタル":     {"brightness": 0.95, "contrast": 1.1, "warmth": 0.95},
-    "お金・事業の考え方":   {"brightness": 1.05, "contrast": 1.05, "warmth": 1.0},
-    "人間関係・コミュニケーション": {"brightness": 1.1, "contrast": 1.0, "warmth": 1.1},
+# テーマ別 OpenAI 加工プロンプト
+THEME_PROMPTS = {
+    "思考・マインドセット": (
+        "This is a watercolor illustration of a cute corgi. "
+        "Add a soft, dreamy atmosphere with gentle pastel tones and subtle floating book or star elements in the background. "
+        "Keep the corgi character exactly as-is, only enhance the background mood. Watercolor illustration style."
+    ),
+    "習慣・行動": (
+        "This is a watercolor illustration of a cute corgi. "
+        "Add a bright, energetic atmosphere with warm sunrise colors and dynamic energy in the background. "
+        "Keep the corgi character exactly as-is, only enhance the background mood. Watercolor illustration style."
+    ),
+    "経営者のメンタル": (
+        "This is a watercolor illustration of a cute corgi. "
+        "Add a confident, professional atmosphere with cool blue and gold accent tones in the background. "
+        "Keep the corgi character exactly as-is, only enhance the background mood. Watercolor illustration style."
+    ),
+    "お金・事業の考え方": (
+        "This is a watercolor illustration of a cute corgi. "
+        "Add a sophisticated atmosphere with subtle golden tones and clean business-like background elements. "
+        "Keep the corgi character exactly as-is, only enhance the background mood. Watercolor illustration style."
+    ),
+    "人間関係・コミュニケーション": (
+        "This is a watercolor illustration of a cute corgi. "
+        "Add a warm, friendly atmosphere with soft pink and orange tones and gentle heart or sparkle elements in the background. "
+        "Keep the corgi character exactly as-is, only enhance the background mood. Watercolor illustration style."
+    ),
 }
-DEFAULT_FILTER = {"brightness": 1.0, "contrast": 1.0, "warmth": 1.0}
+DEFAULT_PROMPT = (
+    "This is a watercolor illustration of a cute corgi. "
+    "Enhance the background with a pleasant, positive atmosphere. "
+    "Keep the corgi character exactly as-is. Watercolor illustration style."
+)
+
+
+def edit_with_openai(image_path: str, theme: str, api_key: str) -> bytes:
+    """gpt-image-1でテーマに合わせて画像を加工し、PNG bytesを返す"""
+    from openai import OpenAI
+
+    # 正方形にクロップしてリサイズ
+    img = Image.open(image_path).convert("RGB")
+    w, h = img.size
+    size = min(w, h)
+    left = (w - size) // 2
+    top = (h - size) // 2
+    img = img.crop((left, top, left + size, top + size))
+    img = img.resize((1024, 1024), Image.LANCZOS)
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+
+    client = OpenAI(api_key=api_key)
+    prompt = THEME_PROMPTS.get(theme, DEFAULT_PROMPT)
+
+    response = client.images.edit(
+        model="gpt-image-1",
+        image=("corgi.png", buf, "image/png"),
+        prompt=prompt,
+        size="1024x1024",
+    )
+
+    import base64
+    return base64.b64decode(response.data[0].b64_json)
 
 
 def _find_font(size=FONT_SIZE):
@@ -54,38 +110,13 @@ def _extract_first_line(text: str) -> str:
     return first
 
 
-def _apply_theme_filter(img: Image.Image, theme: str) -> Image.Image:
-    cfg = THEME_FILTERS.get(theme, DEFAULT_FILTER)
-
-    img = ImageEnhance.Brightness(img).enhance(cfg["brightness"])
-    img = ImageEnhance.Contrast(img).enhance(cfg["contrast"])
-
-    # 暖色/寒色フィルター
-    warmth = cfg["warmth"]
-    if warmth != 1.0:
-        r, g, b = img.split()
-        if warmth > 1.0:
-            factor = warmth - 1.0
-            r = ImageEnhance.Brightness(r).enhance(1 + factor * 0.15)
-            b = ImageEnhance.Brightness(b).enhance(1 - factor * 0.10)
-        else:
-            factor = 1.0 - warmth
-            b = ImageEnhance.Brightness(b).enhance(1 + factor * 0.15)
-            r = ImageEnhance.Brightness(r).enhance(1 - factor * 0.10)
-        img = Image.merge("RGB", (r, g, b))
-
-    return img
-
-
 def add_speech_bubble(image_path: str, text: str, theme: str = "", output_path: str = None) -> str:
     if output_path is None:
         output_path = image_path
 
     display_text = _extract_first_line(text)
 
-    img = Image.open(image_path).convert("RGB")
-    img = _apply_theme_filter(img, theme)
-    img = img.convert("RGBA")
+    img = Image.open(image_path).convert("RGBA")
     W, H = img.size
 
     overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
@@ -103,7 +134,6 @@ def add_speech_bubble(image_path: str, text: str, theme: str = "", output_path: 
             font = _find_font(font_size)
             bbox = draw.textbbox((0, 0), display_text, font=font)
             tw = bbox[2] - bbox[0]
-            th = bbox[3] - bbox[1]
             if tw <= max_text_w:
                 break
             font_size -= 2

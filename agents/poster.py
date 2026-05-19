@@ -95,9 +95,9 @@ def reset_error(error_count_path):
         f.write("0")
 
 
-def build_image_with_overlay(post_text: str, theme: str) -> str:
-    """ローカルのコーギー画像にテキストオーバーレイを適用して一時ファイルに保存"""
-    from bubble_composer import select_image, add_speech_bubble
+def build_image_with_overlay(post_text: str, theme: str, openai_api_key: str = None) -> str:
+    """OpenAI APIでテーマ加工 → テキストオーバーレイを適用して一時ファイルに保存"""
+    from bubble_composer import select_image, add_speech_bubble, edit_with_openai
 
     src = select_image(IMAGES_DIR, theme)
     if src is None:
@@ -107,11 +107,25 @@ def build_image_with_overlay(post_text: str, theme: str) -> str:
     tmp_dir = os.path.join(BOT_DIR, "data", "tmp_images")
     os.makedirs(tmp_dir, exist_ok=True)
     tmp_path = os.path.join(tmp_dir, f"post_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
-    shutil.copy2(src, tmp_path)
 
+    # OpenAI APIで画像加工
+    if openai_api_key:
+        try:
+            print(f"[INFO] OpenAI APIで画像加工中 (テーマ: {theme})")
+            edited_bytes = edit_with_openai(src, theme, openai_api_key)
+            with open(tmp_path, "wb") as f:
+                f.write(edited_bytes)
+            print(f"[OK] OpenAI画像加工完了")
+        except Exception as e:
+            print(f"[WARN] OpenAI加工失敗、元画像を使用: {e}")
+            shutil.copy2(src, tmp_path)
+    else:
+        shutil.copy2(src, tmp_path)
+
+    # テキストオーバーレイ
     try:
         add_speech_bubble(tmp_path, post_text, theme=theme, output_path=tmp_path)
-        print(f"[OK] 画像オーバーレイ完了: {os.path.basename(src)}")
+        print(f"[OK] テキストオーバーレイ完了: {os.path.basename(src)}")
     except Exception as e:
         print(f"[WARN] テキストオーバーレイ失敗: {e}")
 
@@ -207,10 +221,12 @@ def main():
     theme = post.get("theme", "")
     print(f"[INFO] 投稿開始: {text[:30]}...")
 
+    openai_key = creds.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY")
+
     # 画像処理
     image_url = None
     try:
-        tmp_img = build_image_with_overlay(text, theme)
+        tmp_img = build_image_with_overlay(text, theme, openai_api_key=openai_key)
         if tmp_img:
             image_url = upload_to_catbox(tmp_img)
             # 一時ファイルを削除
