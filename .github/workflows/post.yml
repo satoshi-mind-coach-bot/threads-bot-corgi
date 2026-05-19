@@ -43,6 +43,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python agents/writer.py
+        continue-on-error: true
 
       - name: Post to Threads
         env:
@@ -50,6 +51,7 @@ jobs:
           THREADS_APP_SECRET: ${{ secrets.THREADS_APP_SECRET }}
           THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
           THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python agents/poster.py
 
       - name: Save updated queue and history

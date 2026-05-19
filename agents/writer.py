@@ -107,8 +107,8 @@ JSON配列のみ出力してください。説明文・コードブロック記�
 
     api_key = get_api_key()
     if not api_key:
-        print("[ERROR] ANTHROPIC_API_KEYが見つかりません。")
-        sys.exit(1)
+        print("[SKIP] ANTHROPIC_API_KEYが見つかりません。キュー補充をスキップします。")
+        sys.exit(0)
 
     import anthropic
     client = anthropic.Anthropic(api_key=api_key)
