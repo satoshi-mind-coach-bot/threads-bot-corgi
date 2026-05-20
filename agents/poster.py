@@ -2,12 +2,14 @@ import json
 import os
 import sys
 import time
+import shutil
 import urllib.request
 import urllib.parse
 from datetime import datetime, timezone, timedelta
 
 JST = timezone(timedelta(hours=9))
 BOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+IMAGES_DIR = os.path.join(BOT_DIR, "knowledge", "images", "corgi")
 
 
 def load_credentials():
@@ -55,7 +57,7 @@ def check_daily_limit(history, safety):
     today = datetime.now(JST).strftime("%Y-%m-%d")
     today_posts = [p for p in history if p.get("posted_at", "").startswith(today)]
     if len(today_posts) >= safety["max_posts_per_day"]:
-        print(f"[STOP] 本日の投稿上限（{safety["max_posts_per_day"]}件）に達しています。")
+        print(f"[STOP] 本日の投稿上限（{safety['max_posts_per_day']}件）に達しています。")
         sys.exit(0)
 
 
@@ -93,9 +95,82 @@ def reset_error(error_count_path):
         f.write("0")
 
 
-def create_thread(token, user_id, text):
+def get_effective_slot(post):
+    """テーマ名・本文キーワードからtime_slotを判定する"""
+    theme = post.get("theme", "")
+    text = post.get("text", "")
+    slot = post.get("time_slot", "フリー") or "フリー"
+    if "朝" in theme:
+        return "朝"
+    if "夜" in theme:
+        return "夜"
+    morning_words = ["おはよう", "おはようございます", "朝起き", "今朝"]
+    evening_words = ["こんばんは", "おやすみ", "夜中", "今夜"]
+    if any(w in text for w in morning_words):
+        return "朝"
+    if any(w in text for w in evening_words):
+        return "夜"
+    return slot
+
+
+def build_image_with_overlay(post_text: str, theme: str) -> str:
+    """元の水彩コーギー画像にテキストオーバーレイを適用して一時ファイルに保存"""
+    from bubble_composer import select_image, add_speech_bubble
+
+    src = select_image(IMAGES_DIR, theme)
+    if src is None:
+        print(f"[WARN] 画像フォルダ '{IMAGES_DIR}' に画像がありません。テキストのみ投稿します。")
+        return None
+
+    tmp_dir = os.path.join(BOT_DIR, "data", "tmp_images")
+    os.makedirs(tmp_dir, exist_ok=True)
+    tmp_path = os.path.join(tmp_dir, f"post_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
+
+    # 元画像をそのまま使用（OpenAI加工なし・色味を保持）
+    shutil.copy2(src, tmp_path)
+
+    try:
+        add_speech_bubble(tmp_path, post_text, theme=theme, output_path=tmp_path)
+        print(f"[OK] テキストオーバーレイ完了: {os.path.basename(src)}")
+    except Exception as e:
+        print(f"[WARN] テキストオーバーレイ失敗: {e}")
+
+    return tmp_path
+
+
+def upload_to_catbox(img_path: str) -> str:
+    with open(img_path, "rb") as f:
+        img_bytes = f.read()
+    boundary = "----FormBoundary7MA4YWxkTrZu0gW"
+    body = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="reqtype"\r\n\r\n'
+        f"fileupload\r\n"
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="fileToUpload"; filename="corgi.png"\r\n'
+        f"Content-Type: image/png\r\n\r\n"
+    ).encode("utf-8") + img_bytes + f"\r\n--{boundary}--\r\n".encode("utf-8")
+
+    req = urllib.request.Request(
+        "https://catbox.moe/user/api.php",
+        data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=30) as res:
+        url = res.read().decode("utf-8").strip()
+    if not url.startswith("http"):
+        raise ValueError(f"catbox upload failed: {url}")
+    print(f"[OK] 画像アップロード完了: {url}")
+    return url
+
+
+def create_thread(token, user_id, text, image_url=None):
     url = f"https://graph.threads.net/v1.0/{user_id}/threads"
-    params = {"media_type": "TEXT", "text": text, "access_token": token}
+    if image_url:
+        params = {"media_type": "IMAGE", "image_url": image_url, "text": text, "access_token": token}
+    else:
+        params = {"media_type": "TEXT", "text": text, "access_token": token}
     data = urllib.parse.urlencode(params).encode("utf-8")
     req = urllib.request.Request(url, data=data, method="POST")
     with urllib.request.urlopen(req) as res:
@@ -131,12 +206,42 @@ def main():
         print("[INFO] キューが空です。")
         sys.exit(0)
 
-    post = queue.pop(0)
+    # time_slot で投稿を選択
+    current_hour = datetime.now(JST).hour
+    if 5 <= current_hour < 11:
+        current_slot = "朝"
+    elif 11 <= current_hour < 17:
+        current_slot = "昼"
+    else:
+        current_slot = "夜"
+
+    idx = next((i for i, p in enumerate(queue) if get_effective_slot(p) == current_slot), None)
+    if idx is None:
+        idx = next((i for i, p in enumerate(queue) if get_effective_slot(p) in ("フリー", None, "")), None)
+    if idx is None:
+        print(f"[SKIP] 現在({current_slot})に適した投稿がキューにありません。")
+        sys.exit(0)
+
+    post = queue.pop(idx)
     text = post.get("text", "")
-    print(f"[INFO] 投稿開始: {text[:40]}...")
+    theme = post.get("theme", "")
+    print(f"[INFO] 投稿開始: {text[:30]}...")
+
+    # 画像処理（元のステッカー画像 + テキストオーバーレイ）
+    image_url = None
+    try:
+        tmp_img = build_image_with_overlay(text, theme)
+        if tmp_img:
+            image_url = upload_to_catbox(tmp_img)
+            try:
+                os.remove(tmp_img)
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"[WARN] 画像処理失敗。テキストのみ投稿: {e}")
 
     try:
-        result = create_thread(token, user_id, text)
+        result = create_thread(token, user_id, text, image_url=image_url)
         creation_id = result["id"]
         time.sleep(3)
         published = publish_thread(token, user_id, creation_id)
