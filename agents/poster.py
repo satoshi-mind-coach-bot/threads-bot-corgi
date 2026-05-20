@@ -113,25 +113,37 @@ def get_effective_slot(post):
     return slot
 
 
-def build_image_with_overlay(post_text: str, theme: str) -> str:
-    """元の水彩コーギー画像にテキストオーバーレイを適用して一時ファイルに保存"""
-    from bubble_composer import select_image, add_speech_bubble
-
-    src = select_image(IMAGES_DIR, theme)
-    if src is None:
-        print(f"[WARN] 画像フォルダ '{IMAGES_DIR}' に画像がありません。テキストのみ投稿します。")
-        return None
+def build_image_with_overlay(post_text: str, theme: str, openai_api_key: str = None) -> str:
+    """テーマに合ったコーギー画像を生成（またはフォールバック）してテキストオーバーレイを適用"""
+    from bubble_composer import select_image, add_speech_bubble, generate_with_openai
 
     tmp_dir = os.path.join(BOT_DIR, "data", "tmp_images")
     os.makedirs(tmp_dir, exist_ok=True)
     tmp_path = os.path.join(tmp_dir, f"post_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
 
-    # 元画像をそのまま使用（OpenAI加工なし・色味を保持）
-    shutil.copy2(src, tmp_path)
+    if openai_api_key:
+        try:
+            print(f"[INFO] OpenAI APIで画像生成中 (テーマ: {theme})")
+            img_bytes = generate_with_openai(theme, openai_api_key)
+            with open(tmp_path, "wb") as f:
+                f.write(img_bytes)
+            print("[OK] 画像生成完了")
+        except Exception as e:
+            print(f"[WARN] 画像生成失敗、元画像を使用: {e}")
+            src = select_image(IMAGES_DIR, theme)
+            if src is None:
+                return None
+            shutil.copy2(src, tmp_path)
+    else:
+        src = select_image(IMAGES_DIR, theme)
+        if src is None:
+            print(f"[WARN] 画像フォルダに画像がありません。テキストのみ投稿します。")
+            return None
+        shutil.copy2(src, tmp_path)
 
     try:
         add_speech_bubble(tmp_path, post_text, theme=theme, output_path=tmp_path)
-        print(f"[OK] テキストオーバーレイ完了: {os.path.basename(src)}")
+        print("[OK] テキストオーバーレイ完了")
     except Exception as e:
         print(f"[WARN] テキストオーバーレイ失敗: {e}")
 
@@ -227,10 +239,12 @@ def main():
     theme = post.get("theme", "")
     print(f"[INFO] 投稿開始: {text[:30]}...")
 
-    # 画像処理（元のステッカー画像 + テキストオーバーレイ）
+    openai_key = creds.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY")
+
+    # 画像生成（テーマ別ポーズ）+ テキストオーバーレイ
     image_url = None
     try:
-        tmp_img = build_image_with_overlay(text, theme)
+        tmp_img = build_image_with_overlay(text, theme, openai_api_key=openai_key)
         if tmp_img:
             image_url = upload_to_catbox(tmp_img)
             try:

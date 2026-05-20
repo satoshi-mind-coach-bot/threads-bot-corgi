@@ -20,7 +20,46 @@ OVERLAY_COLOR = (0, 0, 0, 120)
 OVERLAY_HEIGHT_RATIO = 0.20
 MAX_CHARS = 20
 
-# テーマ別 OpenAI 加工プロンプト
+# テーマ別 画像生成プロンプト（generate用）
+_GEN_BASE = (
+    "Cute watercolor sticker illustration of a corgi puppy. "
+    "White irregular wavy sticker border around the character. "
+    "Soft cool sage green and mint watercolor splatter background. "
+    "Orange-golden and pure white fluffy fur. Big bright green eyes. Black tiny nose. "
+    "Chibi cute cartoon style. No yellow tones, no warm tones. "
+    "Cool fresh color palette. Clean isolated sticker on white background. "
+)
+
+THEME_GEN_PROMPTS = {
+    "朝の名言": (
+        _GEN_BASE
+        + "The corgi is jumping with joy, ears flying up, front paws raised, big happy smile. "
+        "Energetic and bright morning energy."
+    ),
+    "引き寄せ": (
+        _GEN_BASE
+        + "The corgi is sitting and looking up dreamily at tiny stars and sparkles above. "
+        "Soft magical expression, eyes slightly closed, gentle smile."
+    ),
+    "自己肯定感": (
+        _GEN_BASE
+        + "The corgi is sitting proudly with chest puffed out, bright confident smile, tail wagging. "
+        "Self-assured and happy pose."
+    ),
+    "メンタル強化": (
+        _GEN_BASE
+        + "The corgi has a determined and focused expression, sitting tall, tiny fists raised. "
+        "Strong and resilient cute pose."
+    ),
+    "習慣づくり": (
+        _GEN_BASE
+        + "The corgi is curled up sleeping peacefully, eyes closed with a tiny smile, "
+        "fluffy tail wrapped around, small ZZZ bubbles floating above. Cozy and adorable."
+    ),
+}
+_GEN_DEFAULT = _GEN_BASE + "The corgi is sitting and smiling cheerfully, looking straight ahead. Friendly and cute."
+
+# テーマ別 OpenAI 加工プロンプト（edit用・現在未使用）
 _CORGI_BASE = (
     "This is a watercolor illustration of a cute corgi. "
     "Keep the corgi character exactly as-is — preserve the white fur as pure white and the golden-brown fur in its natural color. "
@@ -53,6 +92,24 @@ DEFAULT_PROMPT = (
     _CORGI_BASE
     + "Enhance the background with a pleasant, positive atmosphere using cool, balanced tones."
 )
+
+
+def generate_with_openai(theme: str, api_key: str) -> bytes:
+    """gpt-image-1でテーマに合ったコーギー画像を生成してPNG bytesを返す"""
+    from openai import OpenAI
+    import base64
+
+    client = OpenAI(api_key=api_key)
+    prompt = THEME_GEN_PROMPTS.get(theme, _GEN_DEFAULT)
+
+    response = client.images.generate(
+        model="gpt-image-1",
+        prompt=prompt,
+        size="1024x1024",
+        quality="standard",
+        n=1,
+    )
+    return base64.b64decode(response.data[0].b64_json)
 
 
 def edit_with_openai(image_path: str, theme: str, api_key: str) -> bytes:
@@ -164,14 +221,34 @@ def add_speech_bubble(image_path: str, text: str, theme: str = "", output_path: 
     return output_path
 
 
+THEME_IMAGE_MAP = {
+    "朝の名言":   "corgi_morning.png",
+    "引き寄せ":   "corgi_dream.png",
+    "自己肯定感": "corgi_happy.png",
+    "メンタル強化": "corgi_strong.png",
+    "習慣づくり": "corgi_sleep.png",
+}
+
+
 def select_image(images_dir: str, theme: str = "") -> str:
     if not os.path.isdir(images_dir):
         return None
+
+    # テーマ対応画像を優先
+    theme_file = THEME_IMAGE_MAP.get(theme)
+    if theme_file:
+        themed_path = os.path.join(images_dir, theme_file)
+        if os.path.exists(themed_path):
+            return themed_path
+
+    # フォールバック: corgi_main.png → ランダム
+    main_path = os.path.join(images_dir, "corgi_main.png")
+    if os.path.exists(main_path):
+        return main_path
+
     images = [
         os.path.join(images_dir, f)
         for f in os.listdir(images_dir)
         if f.lower().endswith((".png", ".jpg", ".jpeg"))
     ]
-    if not images:
-        return None
-    return random.choice(images)
+    return random.choice(images) if images else None
