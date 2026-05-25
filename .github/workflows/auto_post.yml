@@ -26,6 +26,7 @@ jobs:
         run: pip install pillow requests anthropic
 
       - name: Refill queue if low
+        continue-on-error: true
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
