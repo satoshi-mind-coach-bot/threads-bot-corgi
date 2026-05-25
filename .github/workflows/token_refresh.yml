@@ -1,0 +1,31 @@
+name: Threads Token Refresh
+
+on:
+  schedule:
+    - cron: "0 2 1,15 * *"  # 毎月1日・15日 11:00 JST
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Refresh token and update secret
+        env:
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+        run: |
+          NEW_TOKEN=$(python scripts/token_refresh_ci.py)
+          if [ -z "$NEW_TOKEN" ]; then
+            echo "ERROR: トークン更新失敗"
+            exit 1
+          fi
+          gh secret set THREADS_ACCESS_TOKEN --repo ${{ github.repository }} --body "$NEW_TOKEN"
+          echo "トークン更新完了"
