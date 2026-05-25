@@ -1,0 +1,43 @@
+name: Corgi Threads Auto Post
+
+on:
+  schedule:
+    - cron: "3 0 * * *"   # 09:03 JST
+    - cron: "3 4 * * *"   # 13:03 JST
+    - cron: "3 11 * * *"  # 20:03 JST
+  workflow_dispatch:       # 手動実行ボタン
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install pillow requests
+
+      - name: Run poster
+        env:
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          cd $GITHUB_WORKSPACE
+          python agents/poster.py
+
+      - name: Commit updated queue and history
+        run: |
+          git config user.name "corgi-bot"
+          git config user.email "bot@corgi.auto"
+          git add data/post_queue.json data/post_history.json data/error_count.txt || true
+          git diff --staged --quiet || git commit -m "Update queue and history"
+          git push
