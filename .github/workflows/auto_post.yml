@@ -23,7 +23,14 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install pillow requests
+        run: pip install pillow requests anthropic
+
+      - name: Refill queue if low
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          cd $GITHUB_WORKSPACE
+          python agents/writer.py
 
       - name: Run poster
         env:
