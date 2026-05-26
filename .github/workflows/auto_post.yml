@@ -23,7 +23,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install pillow requests anthropic
+        run: pip install pillow requests anthropic openai
 
       - name: Refill queue if low
         continue-on-error: true
