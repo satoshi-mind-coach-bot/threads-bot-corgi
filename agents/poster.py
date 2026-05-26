@@ -239,20 +239,14 @@ def main():
     theme = post.get("theme", "")
     print(f"[INFO] 投稿開始: {text[:30]}...")
 
-    openai_key = creds.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY")
-
-    # 画像生成（テーマ別ポーズ）+ テキストオーバーレイ
-    image_url = None
-    try:
-        tmp_img = build_image_with_overlay(text, theme, openai_api_key=openai_key)
-        if tmp_img:
-            image_url = upload_to_catbox(tmp_img)
-            try:
-                os.remove(tmp_img)
-            except Exception:
-                pass
-    except Exception as e:
-        print(f"[WARN] 画像処理失敗。テキストのみ投稿: {e}")
+    # GitHubに保存済みのコーギー画像を直接使用（安定・高速）
+    GITHUB_IMAGE_URL = (
+        "https://raw.githubusercontent.com/"
+        "satoshi-mind-coach-bot/threads-bot-corgi/main/"
+        "knowledge/images/corgi/corgi_main.png"
+    )
+    image_url = GITHUB_IMAGE_URL
+    print(f"[INFO] 画像URL: {image_url}")
 
     try:
         result = create_thread(token, user_id, text, image_url=image_url)
